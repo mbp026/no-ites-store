@@ -1,13 +1,17 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { createOrder } from '../services/supabaseOrders';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
 export default function Checkout() {
   const { cart, subtotal, clearCart } = useCart();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [step, setStep] = useState(1); // 1: Info, 2: Shipping, 3: Payment
 
   const [formData, setFormData] = useState({
@@ -58,14 +62,48 @@ export default function Checkout() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
-    // Simulate order processing
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    try {
+      const order = await createOrder({
+        email: formData.email,
+        userId: user?.id || null,
+        items: cart.map(item => ({
+          productId: item.productId,
+          name: item.name,
+          slug: item.slug,
+          image: item.image,
+          size: item.size,
+          color: item.color,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        shippingAddress: {
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          address: formData.address,
+          apartment: formData.apartment,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode,
+          phone: formData.phone
+        },
+        subtotal,
+        shipping,
+        tax,
+        total
+      });
 
-    // In a real app, you'd send order to backend/Firebase here
-    clearCart();
-    navigate('/order-confirmation');
-    setLoading(false);
+      clearCart();
+      navigate('/order-confirmation', {
+        state: { orderNumber: order.order_number }
+      });
+    } catch (err) {
+      console.error('Order creation failed:', err);
+      setError('Failed to place order. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (cart.length === 0) {
@@ -231,6 +269,13 @@ export default function Checkout() {
             {step === 3 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold mb-4">Payment</h2>
+
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 p-4 mb-4">
+                    {error}
+                  </div>
+                )}
+
                 <div className="bg-gray-50 p-6 border border-gray-200">
                   <p className="text-gray-600 mb-4">
                     This is a demo store. No real payment will be processed.

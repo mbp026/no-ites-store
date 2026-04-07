@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { XMarkIcon, PlusIcon } from '@heroicons/react/24/outline';
-import { getProductById, getCategories } from '../../services/products';
+import { XMarkIcon, PlusIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { getProductById, getCategories, createProduct, updateProduct } from '../../services/products';
+import { uploadProductImage } from '../../services/supabaseStorage';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
@@ -13,6 +14,9 @@ export default function ProductForm() {
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -115,26 +119,66 @@ export default function ProductForm() {
     }));
   };
 
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    setUploading(true);
+    try {
+      const slug = formData.slug || 'temp-' + Date.now();
+      const uploadPromises = files.map(file => uploadProductImage(file, slug));
+      const urls = await Promise.all(uploadPromises);
+
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images.filter(img => img.trim()), ...urls]
+      }));
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setError('Failed to upload image(s)');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setError(null);
 
-    // Prepare data
-    const productData = {
-      ...formData,
-      price: parseFloat(formData.price),
-      compareAtPrice: formData.compareAtPrice ? parseFloat(formData.compareAtPrice) : null,
-      images: formData.images.filter(img => img.trim()),
-    };
+    try {
+      // Prepare data
+      const productData = {
+        name: formData.name,
+        slug: formData.slug,
+        description: formData.description,
+        category: formData.category,
+        price: parseFloat(formData.price),
+        compareAtPrice: formData.compareAtPrice ? parseFloat(formData.compareAtPrice) : null,
+        images: formData.images.filter(img => img.trim()),
+        sizes: formData.sizes,
+        colors: formData.colors.filter(c => c.name.trim()),
+        featured: formData.featured,
+        active: formData.active,
+        inventory: formData.inventory || {}
+      };
 
-    // In real app, save to Firebase
-    console.log('Saving product:', productData);
+      if (isEditing) {
+        await updateProduct(id, productData);
+      } else {
+        await createProduct(productData);
+      }
 
-    // Simulate save
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    setSaving(false);
-    navigate('/admin/products');
+      navigate('/admin/products');
+    } catch (err) {
+      console.error('Failed to save product:', err);
+      setError('Failed to save product. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -154,6 +198,12 @@ export default function ProductForm() {
       </h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4">
+            {error}
+          </div>
+        )}
+
         <div className="bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-semibold">Basic Information</h2>
 
@@ -238,24 +288,75 @@ export default function ProductForm() {
         <div className="bg-white p-6 shadow-sm space-y-4">
           <h2 className="text-lg font-semibold">Images</h2>
 
-          {formData.images.map((image, index) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                placeholder="Image URL"
-                value={image}
-                onChange={(e) => handleImageChange(index, e.target.value)}
-              />
-              {formData.images.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => removeImage(index)}
-                  className="p-3 text-gray-400 hover:text-red-500"
-                >
-                  <XMarkIcon className="h-5 w-5" />
-                </button>
-              )}
+          {/* Image previews */}
+          {formData.images.filter(img => img.trim()).length > 0 && (
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              {formData.images.filter(img => img.trim()).map((image, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={image}
+                    alt={`Product ${index + 1}`}
+                    className="w-full h-24 object-cover border"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeImage(formData.images.indexOf(image))}
+                    className="absolute top-1 right-1 bg-red-500 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <XMarkIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
+
+          {/* File upload */}
+          <div className="border-2 border-dashed border-gray-300 p-6 text-center">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileUpload}
+              className="hidden"
+              id="image-upload"
+            />
+            <label
+              htmlFor="image-upload"
+              className="cursor-pointer flex flex-col items-center"
+            >
+              <PhotoIcon className="h-10 w-10 text-gray-400 mb-2" />
+              <span className="text-sm text-gray-600">
+                {uploading ? 'Uploading...' : 'Click to upload images'}
+              </span>
+              <span className="text-xs text-gray-400 mt-1">
+                PNG, JPG up to 10MB
+              </span>
+            </label>
+          </div>
+
+          {/* URL inputs */}
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500">Or add image URLs directly:</p>
+            {formData.images.map((image, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  placeholder="Image URL"
+                  value={image}
+                  onChange={(e) => handleImageChange(index, e.target.value)}
+                />
+                {formData.images.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeImage(index)}
+                    className="p-3 text-gray-400 hover:text-red-500"
+                  >
+                    <XMarkIcon className="h-5 w-5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
 
           <button
             type="button"
@@ -263,7 +364,7 @@ export default function ProductForm() {
             className="text-sm text-gray-600 hover:text-black flex items-center gap-1"
           >
             <PlusIcon className="h-4 w-4" />
-            Add another image
+            Add another URL
           </button>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getAllProductsAdmin } from '../../services/products';
+import { getAllProductsAdmin, updateInventory } from '../../services/products';
 import Button from '../../components/ui/Button';
 
 export default function ManageInventory() {
@@ -35,12 +35,43 @@ export default function ManageInventory() {
 
   const handleSave = async () => {
     setSaving(true);
-    // In real app, update Firebase
-    console.log('Saving inventory changes:', changes);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setChanges({});
-    setSaving(false);
-    alert('Inventory updated successfully!');
+
+    try {
+      // Group changes by product
+      const productChanges = {};
+      for (const [key, qty] of Object.entries(changes)) {
+        const [productId, ...variantParts] = key.split('-');
+        const variant = variantParts.join('-'); // Rejoin in case variant has hyphens
+
+        if (!productChanges[productId]) {
+          // Get the product's current inventory
+          const product = products.find(p => p.id === productId);
+          productChanges[productId] = { ...product.inventory };
+        }
+        productChanges[productId][variant] = qty;
+      }
+
+      // Update each product's inventory
+      for (const [productId, inventory] of Object.entries(productChanges)) {
+        await updateInventory(productId, inventory);
+      }
+
+      // Update local state
+      setProducts(products.map(product => {
+        if (productChanges[product.id]) {
+          return { ...product, inventory: productChanges[product.id] };
+        }
+        return product;
+      }));
+
+      setChanges({});
+      alert('Inventory updated successfully!');
+    } catch (err) {
+      console.error('Failed to save inventory:', err);
+      alert('Failed to save inventory. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const hasChanges = Object.keys(changes).length > 0;
