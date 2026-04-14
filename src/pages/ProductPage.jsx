@@ -176,10 +176,15 @@ export default function ProductPage() {
               Color: <span className="font-normal">{selectedColor}</span>
             </h3>
             <div className="flex gap-2">
-              {product.colors.map((color) => (
+              {product.colors.map((color, colorIndex) => (
                 <button
                   key={color.name}
-                  onClick={() => setSelectedColor(color.name)}
+                  onClick={() => {
+                    setSelectedColor(color.name);
+                    if (colorIndex < product.images.length) {
+                      setCurrentImageIndex(colorIndex);
+                    }
+                  }}
                   className={`w-10 h-10 rounded-full border-2 ${
                     selectedColor === color.name
                       ? 'ring-2 ring-black ring-offset-2'
