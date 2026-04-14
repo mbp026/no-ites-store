@@ -32,15 +32,17 @@ export default function Home() {
               United, not divided. Clothing that reminds us we're all part of one human family.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/shop">
-                <Button size="lg" className="w-full sm:w-auto bg-white text-black hover:bg-gray-100">
-                  Shop Collection
-                </Button>
+              <Link
+                to="/shop"
+                className="inline-flex items-center justify-center font-medium px-8 py-4 text-lg bg-white text-black hover:bg-gray-100 transition-all duration-200 w-full sm:w-auto"
+              >
+                Shop the Collection
               </Link>
-              <Link to="/about">
-                <Button variant="ghost" size="lg" className="w-full sm:w-auto text-white border border-white hover:bg-white/10">
-                  Our Story
-                </Button>
+              <Link
+                to="/about"
+                className="inline-flex items-center justify-center font-medium px-8 py-4 text-lg text-white border border-white hover:bg-white/10 transition-all duration-200 w-full sm:w-auto"
+              >
+                Our Story
               </Link>
             </div>
           </div>
