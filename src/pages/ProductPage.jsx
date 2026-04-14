@@ -19,6 +19,8 @@ export default function ProductPage() {
   const [quantity, setQuantity] = useState(1);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
 
   useEffect(() => {
     async function loadProduct() {
@@ -68,6 +70,13 @@ export default function ProductPage() {
     );
   };
 
+  const handleImageMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setZoomOrigin({ x, y });
+  };
+
   // Check stock
   const stockKey = `${selectedSize}-${selectedColor}`;
   const inStock = product?.inventory?.[stockKey] > 0;
@@ -105,11 +114,22 @@ export default function ProductPage() {
       <div className="grid lg:grid-cols-2 gap-12">
         {/* Image Gallery */}
         <div>
-          <div className="relative aspect-[3/4] bg-gray-100 mb-4">
+          <div
+            className="relative aspect-[3/4] bg-gray-100 mb-4 overflow-hidden"
+            style={{ cursor: isZoomed ? 'zoom-out' : 'zoom-in' }}
+            onMouseEnter={() => setIsZoomed(true)}
+            onMouseLeave={() => { setIsZoomed(false); setZoomOrigin({ x: 50, y: 50 }); }}
+            onMouseMove={handleImageMouseMove}
+          >
             <img
               src={product.images[currentImageIndex]}
               alt={product.name}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-100"
+              style={{
+                transform: isZoomed ? 'scale(2.5)' : 'scale(1)',
+                transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%`,
+                pointerEvents: 'none',
+              }}
             />
             {product.images.length > 1 && (
               <>

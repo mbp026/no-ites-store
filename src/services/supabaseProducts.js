@@ -16,7 +16,7 @@ function transformProduct(product, colors = [], inventory = []) {
     compareAtPrice: product.compare_at_price ? parseFloat(product.compare_at_price) : null,
     images: product.images || [],
     sizes: product.sizes || [],
-    colors: colors.map(c => ({ name: c.name, hex: c.hex })),
+    colors: [...colors].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(c => ({ name: c.name, hex: c.hex })),
     inventory: inventory.reduce((acc, inv) => {
       acc[`${inv.size}-${inv.color}`] = inv.quantity;
       return acc;
